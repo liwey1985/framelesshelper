@@ -43,7 +43,7 @@
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
-static Q_LOGGING_CATEGORY(lcFramelessManager, "wangwenx190.framelesshelper.core.framelessmanager")
+[[maybe_unused]] static Q_LOGGING_CATEGORY(lcFramelessManager, "wangwenx190.framelesshelper.core.framelessmanager")
 
 #ifdef FRAMELESSHELPER_CORE_NO_DEBUG_OUTPUT
 #  define INFO QT_NO_QDEBUG_MACRO()
@@ -168,7 +168,11 @@ SystemTheme FramelessManagerPrivate::systemTheme() const
 {
     // The user's choice has top priority.
     if (isThemeOverrided()) {
+#if defined(Q_OS_MACX) && (__MAC_OS_X_VERSION_MIN_REQUIRED < 101300)
+        return *m_overrideTheme;
+#else
         return m_overrideTheme.value();
+#endif
     }
     return m_systemTheme;
 }

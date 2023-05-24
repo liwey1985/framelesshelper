@@ -65,7 +65,7 @@ FRAMELESSHELPER_END_NAMESPACE
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
-static Q_LOGGING_CATEGORY(lcUtilsMac, "wangwenx190.framelesshelper.core.utils.mac")
+[[maybe_unused]] static Q_LOGGING_CATEGORY(lcUtilsMac, "wangwenx190.framelesshelper.core.utils.mac")
 
 #ifdef FRAMELESSHELPER_CORE_NO_DEBUG_OUTPUT
 #  define INFO QT_NO_QDEBUG_MACRO()
@@ -385,7 +385,14 @@ public Q_SLOTS:
 #else
             NSVisualEffectView * const blurView = [[NSVisualEffectView alloc] initWithFrame:view.bounds];
 #endif
-            blurView.material = NSVisualEffectMaterialUnderWindowBackground;
+            if (@available(macOS 10.14, *)) {
+                blurView.material = NSVisualEffectMaterialUnderWindowBackground;
+            } else {
+                // from chatgpt: not verified, only to depress compile warning
+                // 'NSVisualEffectMaterialUnderWindowBackground' has been marked as being introduced in macOS 10.14 here, but the deployment target is macOS 10.12.0
+                blurView.wantsLayer = YES;
+                blurView.layer.backgroundColor = [[NSColor colorWithWhite:1.0 alpha:0.8] CGColor]; // Adjust alpha value as needed
+            }
             blurView.blendingMode = NSVisualEffectBlendingModeBehindWindow;
             blurView.state = NSVisualEffectStateFollowsWindowActiveState;
             const NSView * const parent = [view superview];
@@ -680,7 +687,13 @@ void Utils::startSystemResize(QWindow *window, const Qt::Edges edges, const QPoi
 
 QColor Utils::getControlsAccentColor()
 {
-    return qt_mac_toQColor([NSColor controlAccentColor]);
+    if (@available(macOS 10.14, *)) {
+        return qt_mac_toQColor([NSColor controlAccentColor]);
+    } else {
+        // from chatgpt: not verified, only to depress compile warning
+        // 'controlAccentColor' has been marked as being introduced in macOS 10.14 here, but the deployment target is macOS 10.12.0
+        return qt_mac_toQColor([NSColor highlightColor]);
+    }
 }
 
 bool Utils::isTitleBarColorized()
