@@ -33,8 +33,8 @@ project(FramelessHelper
 include(CMakeDependentOption)
 
 option(FRAMELESSHELPER_BUILD_STATIC "Build FramelessHelper as a static library." OFF)
-option(FRAMELESSHELPER_BUILD_WIDGETS "Build FramelessHelper's Widgets module." ON)
-option(FRAMELESSHELPER_BUILD_QUICK "Build FramelessHelper's Quick module." ON)
+option(FRAMELESSHELPER_BUILD_WIDGETS "Build FramelessHelper's Widgets module." OFF)
+option(FRAMELESSHELPER_BUILD_QUICK "Build FramelessHelper's Quick module." OFF)
 option(FRAMELESSHELPER_BUILD_EXAMPLES "Build FramelessHelper demo applications." OFF)
 option(FRAMELESSHELPER_EXAMPLES_DEPLOYQT "Deploy the Qt framework after building the demo projects." OFF)
 option(FRAMELESSHELPER_NO_DEBUG_OUTPUT "Suppress the debug messages from FramelessHelper." ON)
@@ -51,7 +51,9 @@ option(FRAMELESSHELPER_ENABLE_INTELCET "Enable Intel CET." OFF)
 option(FRAMELESSHELPER_ENABLE_INTELJCC "Enable Intel JCC." OFF)
 option(FRAMELESSHELPER_ENABLE_CFGUARD "Enable Control Flow Guard (CFG)." OFF)
 option(FRAMELESSHELPER_EXAMPLES_STANDALONE "Build the demo projects as standalone CMake projects." OFF)
-cmake_dependent_option(FRAMELESSHELPER_ENABLE_UNIVERSAL_BUILD "macOS only: build universal library/example for Mac." ON APPLE OFF)
+cmake_dependent_option(FRAMELESSHELPER_ENABLE_UNIVERSAL_BUILD "macOS only: build universal library/example for Mac." OFF APPLE OFF)
+
+set(CMAKE_CXX_STANDARD 17)
 
 include(cmake/utils.cmake)
 
