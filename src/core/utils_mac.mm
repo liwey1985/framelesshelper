@@ -404,7 +404,8 @@ public Q_SLOTS:
         }
 
         nsview.wantsLayer = YES;
-        nswindow.styleMask |= NSWindowStyleMaskResizable;
+        setSystemResizable(isResizable);
+        //nswindow.styleMask |= NSWindowStyleMaskResizable;
         if (visible) {
             nswindow.styleMask &= ~NSWindowStyleMaskFullSizeContentView;
         } else {
@@ -450,6 +451,23 @@ public Q_SLOTS:
                     zoomButton.hidden = YES;
                 }
             });
+        }
+    }
+
+    void setSystemResizable(const bool resizable)
+    {
+        isResizable = resizable;
+        if (!qwindowNSWindowMap.contains(qwindow)) return;
+
+        NSWindow *nswindow = qwindowNSWindowMap.value(qwindow);
+
+        BOOL isResizableOld = (nswindow.styleMask & NSWindowStyleMaskResizable) == NSWindowStyleMaskResizable;
+        if (isResizable == isResizableOld) return;
+
+        if (isResizable) {
+            nswindow.styleMask |= NSWindowStyleMaskResizable;
+        } else {
+            nswindow.styleMask &= ~NSWindowStyleMaskResizable;
         }
     }
 
@@ -700,6 +718,8 @@ private:
     std::unique_ptr<MacOSKeyValueObserver> miniaturizeButtonObserver = nil;
     std::unique_ptr<MacOSKeyValueObserver> zoomButtonObserver = nil;
     std::unique_ptr<MacOSKeyValueObserver> nswindowObserver = nil;
+
+    BOOL isResizable = true;
 };
 
 struct MacUtilsData
@@ -756,6 +776,20 @@ void Utils::setSystemTitleBarVisible(QWindow *window, const bool visible)
     }
     NSWindowProxy * const proxy = ensureWindowProxy(window);
     proxy->setSystemTitleBarVisible(visible);
+}
+
+void Utils::setSystemResizable(QWindow *window, const bool resizable)
+{
+    Q_ASSERT(window);
+    if (!window) {
+        return;
+    }
+    if (!g_macUtilsData()->hash.contains(window)) {
+        return;
+    }
+
+    NSWindowProxy * const proxy = g_macUtilsData()->hash.value(window);
+    proxy->setSystemResizable(resizable);
 }
 
 void Utils::startSystemMove(QWindow *window, const QPoint &globalPos)

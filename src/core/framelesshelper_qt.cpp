@@ -206,10 +206,14 @@ bool FramelessHelperQt::eventFilter(QObject *object, QEvent *event)
     const QPoint globalPos = mouseEvent->screenPos().toPoint();
 #endif
     const bool windowFixedSize = data.params.isWindowFixedSize();
-    const bool ignoreThisEvent = data.params.shouldIgnoreMouseEvents(scenePos);
+    const bool ignoreThisEvent = data.params.shouldIgnoreMouseEvents(scenePos) && !windowFixedSize;
     const bool insideTitleBar = data.params.isInsideTitleBarDraggableArea(scenePos);
     const bool dontOverrideCursor = data.params.getProperty(kDontOverrideCursorVar, false).toBool();
     const bool dontToggleMaximize = data.params.getProperty(kDontToggleMaximizeVar, false).toBool();
+
+#ifdef Q_OS_MACX
+    Utils::setSystemResizable(window, !windowFixedSize);
+#endif
     switch (type) {
     case QEvent::MouseButtonPress: {
         if (button == Qt::LeftButton) {

@@ -181,6 +181,7 @@ FRAMELESSHELPER_CORE_API void sendMoveResizeMessage
 setBlurBehindWindowEnabled(QWindow *window, const Global::BlurMode mode, const QColor &color);
 [[nodiscard]] FRAMELESSHELPER_CORE_API bool shouldAppsUseDarkMode_macos();
 FRAMELESSHELPER_CORE_API void setSystemTitleBarVisible(QWindow *window, const bool visible);
+FRAMELESSHELPER_CORE_API void setSystemResizable(QWindow *window, const bool resizable);
 [[nodiscard]] FRAMELESSHELPER_CORE_API QColor getControlsAccentColor();
 FRAMELESSHELPER_CORE_API void removeWindowProxy(QWindow *window);
 #endif // Q_OS_MACOS
