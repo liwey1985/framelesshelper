@@ -60,8 +60,10 @@ FRAMELESSHELPER_CORE_API void moveWindowToDesktopCenter(
     const Global::SystemButtonType button, const Global::ButtonState state);
 [[nodiscard]] FRAMELESSHELPER_CORE_API bool shouldAppsUseDarkMode();
 [[nodiscard]] FRAMELESSHELPER_CORE_API bool isTitleBarColorized();
+#ifndef Q_OS_MACX
 [[nodiscard]] FRAMELESSHELPER_CORE_API bool
     setBlurBehindWindowEnabled(const WId windowId, const Global::BlurMode mode, const QColor &color);
+#endif
 [[nodiscard]] FRAMELESSHELPER_CORE_API QString getWallpaperFilePath();
 [[nodiscard]] FRAMELESSHELPER_CORE_API Global::WallpaperAspectStyle getWallpaperAspectStyle();
 [[nodiscard]] FRAMELESSHELPER_CORE_API bool isBlurBehindWindowSupported();
@@ -175,10 +177,12 @@ FRAMELESSHELPER_CORE_API void sendMoveResizeMessage
 #endif // Q_OS_LINUX
 
 #ifdef Q_OS_MACOS
+[[nodiscard]] FRAMELESSHELPER_CORE_API bool
+setBlurBehindWindowEnabled(QWindow *window, const Global::BlurMode mode, const QColor &color);
 [[nodiscard]] FRAMELESSHELPER_CORE_API bool shouldAppsUseDarkMode_macos();
-FRAMELESSHELPER_CORE_API void setSystemTitleBarVisible(const WId windowId, const bool visible);
+FRAMELESSHELPER_CORE_API void setSystemTitleBarVisible(QWindow *window, const bool visible);
 [[nodiscard]] FRAMELESSHELPER_CORE_API QColor getControlsAccentColor();
-FRAMELESSHELPER_CORE_API void removeWindowProxy(const WId windowId);
+FRAMELESSHELPER_CORE_API void removeWindowProxy(QWindow *window);
 #endif // Q_OS_MACOS
 } // namespace Utils
 

@@ -61,6 +61,7 @@ struct QtHelperData
 struct QtHelper
 {
     QHash<WId, QtHelperData> data = {};
+    QHash<QWindow*, WId> winIdApplied = {};
 };
 
 Q_GLOBAL_STATIC(QtHelper, g_qtHelper)
@@ -85,6 +86,7 @@ void FramelessHelperQt::addWindow(FramelessParamsConst params)
     // Give it a parent so that it can be deleted even if we forget to do so.
     data.eventFilter = new FramelessHelperQt(window);
     g_qtHelper()->data.insert(windowId, data);
+    g_qtHelper()->winIdApplied.insert(window, windowId);
     const auto shouldApplyFramelessFlag = []() -> bool {
 #ifdef Q_OS_MACOS
         return false;
@@ -103,32 +105,44 @@ void FramelessHelperQt::addWindow(FramelessParamsConst params)
 #ifdef Q_OS_LINUX
         Q_UNUSED(Utils::tryHideSystemTitleBar(windowId, true));
 #elif defined(Q_OS_MACOS)
-        Utils::setSystemTitleBarVisible(windowId, false);
+        Utils::setSystemTitleBarVisible(window, false);
 #endif // Q_OS_LINUX
     }
     window->installEventFilter(data.eventFilter);
     FramelessHelper::Core::setApplicationOSThemeAware();
 }
 
-void FramelessHelperQt::removeWindow(const WId windowId)
+void FramelessHelperQt::removeWindow(QWindow *window)
 {
-    Q_ASSERT(windowId);
-    if (!windowId) {
+    Q_ASSERT(window);
+    if (!window) {
         return;
     }
+
+    WId windowId = window->winId();
     if (!g_qtHelper()->data.contains(windowId)) {
-        return;
+        if (!g_qtHelper->winIdApplied.contains(window)) {
+            return;
+        }
+        windowId = g_qtHelper->winIdApplied.value(window);
     }
     if (const auto eventFilter = g_qtHelper()->data.value(windowId).eventFilter) {
-        if (QWindow * const window = Utils::findWindow(windowId)) {
-            window->removeEventFilter(eventFilter);
-        }
+        window->removeEventFilter(eventFilter);
         delete eventFilter;
     }
     g_qtHelper()->data.remove(windowId);
 #ifdef Q_OS_MACOS
-    Utils::removeWindowProxy(windowId);
+    Utils::removeWindowProxy(window);
 #endif
+}
+
+WId FramelessHelperQt::appliedWinId(QWindow *window)
+{
+    if (g_qtHelper->winIdApplied.contains(window)) {
+        return g_qtHelper->winIdApplied.value(window);
+    }
+
+    return {};
 }
 
 bool FramelessHelperQt::eventFilter(QObject *object, QEvent *event)

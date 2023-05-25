@@ -53,7 +53,7 @@ public:
     Q_NODISCARD Global::WallpaperAspectStyle wallpaperAspectStyle() const;
 
     static void addWindow(const SystemParameters *params);
-    static void removeWindow(const WId windowId);
+    static void removeWindow(QWindow *window);
 
     Q_INVOKABLE void notifySystemThemeHasChangedOrNot();
     Q_INVOKABLE void notifyWallpaperHasChangedOrNot();

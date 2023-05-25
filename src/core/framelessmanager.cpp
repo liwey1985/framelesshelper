@@ -36,6 +36,7 @@
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qloggingcategory.h>
 #include <QtGui/qfontdatabase.h>
+#include <QWindow>
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 5, 0))
 #  include <QtGui/qguiapplication.h>
 #  include <QtGui/qstylehints.h>
@@ -215,19 +216,21 @@ void FramelessManagerPrivate::addWindow(FramelessParamsConst params)
 #endif
 }
 
-void FramelessManagerPrivate::removeWindow(const WId windowId)
+void FramelessManagerPrivate::removeWindow(QWindow *window)
 {
-    Q_ASSERT(windowId);
-    if (!windowId) {
+    Q_ASSERT(window);
+    if (!window) {
         return;
     }
+    WId windowId = window->winId();
     if (!g_helper()->windowIds.contains(windowId)) {
-        return;
+        windowId = FramelessHelperQt::appliedWinId(window);
+        if (!windowId) return;
     }
     g_helper()->windowIds.removeAll(windowId);
     static const bool pureQt = usePureQtImplementation();
     if (pureQt) {
-        FramelessHelperQt::removeWindow(windowId);
+        FramelessHelperQt::removeWindow(window);
     }
 #ifdef Q_OS_WINDOWS
     if (!pureQt) {
@@ -416,10 +419,10 @@ void FramelessManager::addWindow(FramelessParamsConst params)
     d->addWindow(params);
 }
 
-void FramelessManager::removeWindow(const WId windowId)
+void FramelessManager::removeWindow(QWindow *window)
 {
     Q_D(FramelessManager);
-    d->removeWindow(windowId);
+    d->removeWindow(window);
 }
 
 void FramelessManager::setOverrideTheme(const SystemTheme theme)

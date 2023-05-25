@@ -216,45 +216,77 @@ private:
     std::unique_ptr<MacOSKeyValueObserver> m_appearanceObserver = nil;
 };
 
+[[nodiscard]] static inline NSWindow *mac_getNSWindow(const WId windowId)
+{
+    Q_ASSERT(windowId);
+    if (!windowId) {
+        return nil;
+    }
+    const auto nsview = reinterpret_cast<NSView *>(windowId);
+    Q_ASSERT(nsview);
+    if (!nsview) {
+        return nil;
+    }
+    return [nsview window];
+}
+
 class NSWindowProxy : public QObject
 {
     Q_OBJECT
     Q_DISABLE_COPY_MOVE(NSWindowProxy)
 
 public:
-    explicit NSWindowProxy(QWindow *qtWindow, NSWindow *macWindow, QObject *parent = nil) : QObject(parent)
+    // due to NSWindow may change at run-time, so use QWindow as key.
+    // set window as parent for auto destroy on QWindow destroyed.
+    explicit NSWindowProxy(QWindow *qtWindow) : QObject(qtWindow)
     {
         Q_ASSERT(qtWindow);
-        Q_ASSERT(macWindow);
-        Q_ASSERT(!instances.contains(macWindow));
-        if (!qtWindow || !macWindow || instances.contains(macWindow)) {
-            return;
+        Q_ASSERT(!instances.contains(qtWindow));
+        if (!qtWindow || instances.contains(qtWindow)) {
+            return; // need to delete later?
         }
+
+        NSWindow *macWindow = mac_getNSWindow(qtWindow->winId());
+        Q_ASSERT(macWindow);
+        if (!macWindow) {
+            return; // need to delete later?
+        }
+
         qwindow = qtWindow;
-        nswindow = macWindow;
-        instances.insert(macWindow, this);
+        instances.insert(qtWindow, this);
+        qwindowNSWindowMap.insert(qtWindow, macWindow);
+
         saveState();
         if (!windowClass) {
-            windowClass = [nswindow class];
+            windowClass = [macWindow class];
             Q_ASSERT(windowClass);
             replaceImplementations();
         }
+
+        observeNSWindowChange();
     }
 
     ~NSWindowProxy() override
     {
-        instances.remove(nswindow);
+        clearObserver();
+
+        instances.remove(qwindow);
+        qwindowNSWindowMap.remove(qwindow);
         if (instances.count() <= 0) {
             restoreImplementations();
             windowClass = nil;
         }
         restoreState();
-        nswindow = nil;
     }
 
 public Q_SLOTS:
     void saveState()
     {
+        if(!qwindow || !qwindowNSWindowMap.contains(qwindow)) {
+            return;
+        }
+
+        auto nswindow = qwindowNSWindowMap.value(qwindow);
         oldStyleMask = nswindow.styleMask;
         oldTitlebarAppearsTransparent = nswindow.titlebarAppearsTransparent;
         oldTitleVisibility = nswindow.titleVisibility;
@@ -269,6 +301,11 @@ public Q_SLOTS:
 
     void restoreState()
     {
+        if(!qwindow || !qwindowNSWindowMap.contains(qwindow)) {
+            return;
+        }
+
+        auto nswindow = qwindowNSWindowMap.value(qwindow);
         nswindow.styleMask = oldStyleMask;
         nswindow.titlebarAppearsTransparent = oldTitlebarAppearsTransparent;
         nswindow.titleVisibility = oldTitleVisibility;
@@ -343,11 +380,29 @@ public Q_SLOTS:
 
     void setSystemTitleBarVisible(const bool visible)
     {
-        NSView * const nsview = [nswindow contentView];
+        NSWindow *nswindow = mac_getNSWindow(qwindow->winId());
+        Q_ASSERT(nswindow);
+        if (!nswindow) {
+            return;
+        }
+
+        const NSView * const nsview = [nswindow contentView];
         Q_ASSERT(nsview);
         if (!nsview) {
             return;
         }
+
+        if(instances.contains(qwindow)) {
+            qwindowNSWindowMap.insert(qwindow, nswindow);
+        }
+
+        if(visible) {
+            qwindow->removeEventFilter(this);
+            clearObserver();
+        } else {
+            qwindow->installEventFilter(this);
+        }
+
         nsview.wantsLayer = YES;
         nswindow.styleMask |= NSWindowStyleMaskResizable;
         if (visible) {
@@ -361,12 +416,41 @@ public Q_SLOTS:
         nswindow.showsToolbarButton = NO;
         nswindow.movableByWindowBackground = NO;
         nswindow.movable = NO;
-        // For some unknown reason, we don't need the following hack in Qt versions below or equal to 6.2.4.
-#if (QT_VERSION > QT_VERSION_CHECK(6, 2, 4))
-        [nswindow standardWindowButton:NSWindowCloseButton].hidden = (visible ? NO : YES);
-        [nswindow standardWindowButton:NSWindowMiniaturizeButton].hidden = (visible ? NO : YES);
-        [nswindow standardWindowButton:NSWindowZoomButton].hidden = (visible ? NO : YES);
-#endif
+
+        NSButton * const closeButton = [nswindow standardWindowButton:NSWindowCloseButton];
+        if(closeButton) closeButton.hidden = (visible ? NO : YES);
+        NSButton * const miniaturizeButton = [nswindow standardWindowButton:NSWindowMiniaturizeButton];
+        if(miniaturizeButton) miniaturizeButton.hidden = (visible ? NO : YES);
+        NSButton * const zoomButton = [nswindow standardWindowButton:NSWindowZoomButton];
+        if(zoomButton) zoomButton.hidden = (visible ? NO : YES);
+
+        if(visible) return;
+
+        if(!nswindowObserver) {
+            observeNSWindowChange();
+        }
+
+        if(!closeButtonObserver && closeButton) {
+            closeButtonObserver = std::make_unique<MacOSKeyValueObserver>(closeButton, @"hidden", [closeButton](){
+                if(!closeButton.hidden) { // check is required. otherwise, it will cause an infinite loop if macOS <= 10.14.
+                    closeButton.hidden = YES;
+                }
+            });
+        }
+        if(!miniaturizeButtonObserver && miniaturizeButton) {
+            miniaturizeButtonObserver = std::make_unique<MacOSKeyValueObserver>(miniaturizeButton, @"hidden", [miniaturizeButton](){
+                if(!miniaturizeButton.hidden) { // check is required. otherwise, it will cause an infinite loop if macOS <= 10.14.
+                    miniaturizeButton.hidden = YES;
+                }
+            });
+        }
+        if(!zoomButtonObserver && zoomButton) {
+            zoomButtonObserver = std::make_unique<MacOSKeyValueObserver>(zoomButton, @"hidden", [zoomButton](){
+                if(!zoomButton.hidden) { // check is required. otherwise, it will cause an infinite loop if macOS <= 10.14.
+                    zoomButton.hidden = YES;
+                }
+            });
+        }
     }
 
     void setBlurBehindWindowEnabled(const bool enable)
@@ -375,6 +459,7 @@ public Q_SLOTS:
             if (blurEffect) {
                 return;
             }
+            NSWindow *nswindow = mac_getNSWindow(qwindow->winId());
             NSView * const view = [nswindow contentView];
 #if 1
             const Class visualEffectViewClass = NSClassFromString(@"NSVisualEffectView");
@@ -430,6 +515,7 @@ public Q_SLOTS:
         if (!blurEffect) {
             return;
         }
+        NSWindow *nswindow = mac_getNSWindow(qwindow->winId());
         const NSView * const view = [nswindow contentView];
         blurEffect.frame = view.frame;
     }
@@ -450,7 +536,10 @@ public Q_SLOTS:
 private:
     static BOOL canBecomeKeyWindow(id obj, SEL sel)
     {
-        if (instances.contains(reinterpret_cast<NSWindow *>(obj))) {
+        for (auto &&nswindow : std::as_const(qwindowNSWindowMap)) {
+            if(nswindow != reinterpret_cast<NSWindow *>(obj)) {
+                continue;
+            }
             return YES;
         }
 
@@ -463,7 +552,10 @@ private:
 
     static BOOL canBecomeMainWindow(id obj, SEL sel)
     {
-        if (instances.contains(reinterpret_cast<NSWindow *>(obj))) {
+        for (auto &&nswindow : std::as_const(qwindowNSWindowMap)) {
+            if(nswindow != reinterpret_cast<NSWindow *>(obj)) {
+                continue;
+            }
             return YES;
         }
 
@@ -476,7 +568,10 @@ private:
 
     static void setStyleMask(id obj, SEL sel, NSWindowStyleMask styleMask)
     {
-        if (instances.contains(reinterpret_cast<NSWindow *>(obj))) {
+        for (auto &&nswindow : std::as_const(qwindowNSWindowMap)) {
+            if(nswindow != reinterpret_cast<NSWindow *>(obj)) {
+                continue;
+            }
             styleMask |= NSWindowStyleMaskFullSizeContentView;
         }
 
@@ -487,8 +582,12 @@ private:
 
     static void setTitlebarAppearsTransparent(id obj, SEL sel, BOOL transparent)
     {
-        if (instances.contains(reinterpret_cast<NSWindow *>(obj))) {
+        for (auto &&nswindow : std::as_const(qwindowNSWindowMap)) {
+            if(nswindow != reinterpret_cast<NSWindow *>(obj)) {
+                continue;
+            }
             transparent = YES;
+            break;
         }
 
         if (oldSetTitlebarAppearsTransparent) {
@@ -517,9 +616,48 @@ private:
 #endif
     }
 
+    // Only QWidget has QEvent::WinIdChange, while QWindow does not.
+    // And it seems that it doesn't always occur as expected.
+    // so observe NSWindow instead of WinIdChange
+    void observeNSWindowChange()
+    {
+        if(!qwindow || !qwindowNSWindowMap.contains(qwindow)) {
+            return;
+        }
+
+        NSWindow *nswindow = qwindowNSWindowMap.value(qwindow);
+        NSView * const nsview = [nswindow contentView];
+        Q_ASSERT(nsview);
+        if (!nsview) {
+            return;
+        }
+
+        nswindowObserver = std::make_unique<MacOSKeyValueObserver>(nsview, @"window", [this](){
+            qwindowNSWindowMap.remove(qwindow); // do nothing until this window is shown again
+            clearObserver();
+        });
+    }
+
+    void clearObserver()
+    {
+        if(closeButtonObserver) closeButtonObserver.reset();
+        if(zoomButtonObserver) zoomButtonObserver.reset();
+        if(miniaturizeButtonObserver) miniaturizeButtonObserver.reset();
+        if(nswindowObserver) nswindowObserver.reset();
+    }
+
+protected:
+    bool eventFilter(QObject *obj, QEvent *event) override
+    {
+        if(qwindow && qwindow == obj && event->type() == QEvent::Show
+            && instances.contains(qwindow) && !qwindowNSWindowMap.contains(qwindow)) {
+            setSystemTitleBarVisible(false); // if nswindow changed, set title bar hidden again
+        }
+        return QObject::eventFilter(obj, event);
+    }
+
 private:
     QWindow *qwindow = nil;
-    NSWindow *nswindow = nil;
     //NSEvent *lastMouseDownEvent = nil;
     NSView *blurEffect = nil;
 
@@ -538,7 +676,8 @@ private:
     QMetaObject::Connection heightChangeConnection = {};
     QMetaObject::Connection themeChangeConnection = {};
 
-    static inline QHash<NSWindow *, NSWindowProxy *> instances = {};
+    static inline QHash<QWindow *, NSWindowProxy *> instances = {};
+    static inline QHash<QWindow *, NSWindow *> qwindowNSWindowMap = {};
 
     static inline Class windowClass = nil;
 
@@ -556,28 +695,19 @@ private:
 
     using sendEventPtr = void(*)(id, SEL, NSEvent *);
     static inline sendEventPtr oldSendEvent = nil;
+
+    std::unique_ptr<MacOSKeyValueObserver> closeButtonObserver = nil;
+    std::unique_ptr<MacOSKeyValueObserver> miniaturizeButtonObserver = nil;
+    std::unique_ptr<MacOSKeyValueObserver> zoomButtonObserver = nil;
+    std::unique_ptr<MacOSKeyValueObserver> nswindowObserver = nil;
 };
 
 struct MacUtilsData
 {
-    QHash<WId, NSWindowProxy *> hash = {};
+    QHash<QWindow *, NSWindowProxy *> hash = {};
 };
 
 Q_GLOBAL_STATIC(MacUtilsData, g_macUtilsData);
-
-[[nodiscard]] static inline NSWindow *mac_getNSWindow(const WId windowId)
-{
-    Q_ASSERT(windowId);
-    if (!windowId) {
-        return nil;
-    }
-    const auto nsview = reinterpret_cast<NSView *>(windowId);
-    Q_ASSERT(nsview);
-    if (!nsview) {
-        return nil;
-    }
-    return [nsview window];
-}
 
 static inline void cleanupProxy()
 {
@@ -594,32 +724,22 @@ static inline void cleanupProxy()
     g_macUtilsData()->hash.clear();
 }
 
-[[nodiscard]] static inline NSWindowProxy *ensureWindowProxy(const WId windowId)
+[[nodiscard]] static inline NSWindowProxy *ensureWindowProxy(QWindow *window)
 {
-    Q_ASSERT(windowId);
-    if (!windowId) {
+    Q_ASSERT(window);
+    if (!window) {
         return nil;
     }
-    if (!g_macUtilsData()->hash.contains(windowId)) {
-        QWindow * const qwindow = Utils::findWindow(windowId);
-        Q_ASSERT(qwindow);
-        if (!qwindow) {
-            return nil;
-        }
-        NSWindow * const nswindow = mac_getNSWindow(windowId);
-        Q_ASSERT(nswindow);
-        if (!nswindow) {
-            return nil;
-        }
-        const auto proxy = new NSWindowProxy(qwindow, nswindow);
-        g_macUtilsData()->hash.insert(windowId, proxy);
+    if (!g_macUtilsData()->hash.contains(window)) {
+        const auto proxy = new NSWindowProxy(window);
+        g_macUtilsData()->hash.insert(window, proxy);
     }
     static bool cleanerInstalled = false;
     if (!cleanerInstalled) {
         cleanerInstalled = true;
         qAddPostRoutine(cleanupProxy);
     }
-    return g_macUtilsData()->hash.value(windowId);
+    return g_macUtilsData()->hash.value(window);
 }
 
 SystemTheme Utils::getSystemTheme()
@@ -628,13 +748,13 @@ SystemTheme Utils::getSystemTheme()
     return (shouldAppsUseDarkMode() ? SystemTheme::Dark : SystemTheme::Light);
 }
 
-void Utils::setSystemTitleBarVisible(const WId windowId, const bool visible)
+void Utils::setSystemTitleBarVisible(QWindow *window, const bool visible)
 {
-    Q_ASSERT(windowId);
-    if (!windowId) {
+    Q_ASSERT(window);
+    if (!window) {
         return;
     }
-    NSWindowProxy * const proxy = ensureWindowProxy(windowId);
+    NSWindowProxy * const proxy = ensureWindowProxy(window);
     proxy->setSystemTitleBarVisible(visible);
 }
 
@@ -712,11 +832,11 @@ bool Utils::shouldAppsUseDarkMode_macos()
 #endif
 }
 
-bool Utils::setBlurBehindWindowEnabled(const WId windowId, const BlurMode mode, const QColor &color)
+bool Utils::setBlurBehindWindowEnabled(QWindow *window, const BlurMode mode, const QColor &color)
 {
     Q_UNUSED(color);
-    Q_ASSERT(windowId);
-    if (!windowId) {
+    Q_ASSERT(window);
+    if (!window) {
         return false;
     }
     const auto blurMode = [mode]() -> BlurMode {
@@ -726,7 +846,7 @@ bool Utils::setBlurBehindWindowEnabled(const WId windowId, const BlurMode mode, 
         WARNING << "The BlurMode::Windows_* enum values are not supported on macOS.";
         return BlurMode::Default;
     }();
-    NSWindowProxy * const proxy = ensureWindowProxy(windowId);
+    NSWindowProxy * const proxy = ensureWindowProxy(window);
     proxy->setBlurBehindWindowEnabled(blurMode == BlurMode::Default);
     return true;
 }
@@ -787,21 +907,21 @@ void Utils::registerThemeChangeNotification()
     Q_UNUSED(observer);
 }
 
-void Utils::removeWindowProxy(const WId windowId)
+void Utils::removeWindowProxy(QWindow *window)
 {
-    Q_ASSERT(windowId);
-    if (!windowId) {
+    Q_ASSERT(window);
+    if (!window) {
         return;
     }
-    if (!g_macUtilsData()->hash.contains(windowId)) {
+    if (!g_macUtilsData()->hash.contains(window)) {
         return;
     }
-    if (const auto proxy = g_macUtilsData()->hash.value(windowId)) {
+    if (const auto proxy = g_macUtilsData()->hash.value(window)) {
         // We'll restore everything to default in the destructor,
         // so no need to do it manually here.
         delete proxy;
     }
-    g_macUtilsData()->hash.remove(windowId);
+    g_macUtilsData()->hash.remove(window);
 }
 
 QColor Utils::getFrameBorderColor(const bool active)
