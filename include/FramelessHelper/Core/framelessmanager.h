@@ -28,7 +28,6 @@
 
 FRAMELESSHELPER_BEGIN_NAMESPACE
 
-struct SystemParameters;
 class FramelessManagerPrivate;
 
 class FRAMELESSHELPER_CORE_API FramelessManager : public QObject

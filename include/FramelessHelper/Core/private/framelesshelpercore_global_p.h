@@ -35,65 +35,6 @@ FRAMELESSHELPER_BEGIN_NAMESPACE
 using InitializeHookCallback = std::function<void()>;
 using UninitializeHookCallback = std::function<void()>;
 
-using GetWindowFlagsCallback = std::function<Qt::WindowFlags()>;
-using SetWindowFlagsCallback = std::function<void(const Qt::WindowFlags)>;
-using GetWindowSizeCallback = std::function<QSize()>;
-using SetWindowSizeCallback = std::function<void(const QSize &)>;
-using GetWindowPositionCallback = std::function<QPoint()>;
-using SetWindowPositionCallback = std::function<void(const QPoint &)>;
-using GetWindowScreenCallback = std::function<QScreen *()>;
-using IsWindowFixedSizeCallback = std::function<bool()>;
-using SetWindowFixedSizeCallback = std::function<void(const bool)>;
-using GetWindowStateCallback = std::function<Qt::WindowState()>;
-using SetWindowStateCallback = std::function<void(const Qt::WindowState)>;
-using GetWindowHandleCallback = std::function<QWindow *()>;
-using WindowToScreenCallback = std::function<QPoint(const QPoint &)>;
-using ScreenToWindowCallback = std::function<QPoint(const QPoint &)>;
-using IsInsideSystemButtonsCallback = std::function<bool(const QPoint &, Global::SystemButtonType *)>;
-using IsInsideTitleBarDraggableAreaCallback = std::function<bool(const QPoint &)>;
-using GetWindowDevicePixelRatioCallback = std::function<qreal()>;
-using SetSystemButtonStateCallback = std::function<void(const Global::SystemButtonType, const Global::ButtonState)>;
-using GetWindowIdCallback = std::function<WId()>;
-using ShouldIgnoreMouseEventsCallback = std::function<bool(const QPoint &)>;
-using ShowSystemMenuCallback = std::function<void(const QPoint &)>;
-using SetPropertyCallback = std::function<void(const QByteArray &, const QVariant &)>;
-using GetPropertyCallback = std::function<QVariant(const QByteArray &, const QVariant &)>;
-using SetCursorCallback = std::function<void(const QCursor &)>;
-using UnsetCursorCallback = std::function<void()>;
-using GetWidgetHandleCallback = std::function<QObject *()>;
-using ForceChildrenRepaintCallback = std::function<void(const int)>;
-
-struct SystemParameters
-{
-    GetWindowFlagsCallback getWindowFlags = nullptr;
-    SetWindowFlagsCallback setWindowFlags = nullptr;
-    GetWindowSizeCallback getWindowSize = nullptr;
-    SetWindowSizeCallback setWindowSize = nullptr;
-    GetWindowPositionCallback getWindowPosition = nullptr;
-    SetWindowPositionCallback setWindowPosition = nullptr;
-    GetWindowScreenCallback getWindowScreen = nullptr;
-    IsWindowFixedSizeCallback isWindowFixedSize = nullptr;
-    SetWindowFixedSizeCallback setWindowFixedSize = nullptr;
-    GetWindowStateCallback getWindowState = nullptr;
-    SetWindowStateCallback setWindowState = nullptr;
-    GetWindowHandleCallback getWindowHandle = nullptr;
-    WindowToScreenCallback windowToScreen = nullptr;
-    ScreenToWindowCallback screenToWindow = nullptr;
-    IsInsideSystemButtonsCallback isInsideSystemButtons = nullptr;
-    IsInsideTitleBarDraggableAreaCallback isInsideTitleBarDraggableArea = nullptr;
-    GetWindowDevicePixelRatioCallback getWindowDevicePixelRatio = nullptr;
-    SetSystemButtonStateCallback setSystemButtonState = nullptr;
-    GetWindowIdCallback getWindowId = nullptr;
-    ShouldIgnoreMouseEventsCallback shouldIgnoreMouseEvents = nullptr;
-    ShowSystemMenuCallback showSystemMenu = nullptr;
-    SetPropertyCallback setProperty = nullptr;
-    GetPropertyCallback getProperty = nullptr;
-    SetCursorCallback setCursor = nullptr;
-    UnsetCursorCallback unsetCursor = nullptr;
-    GetWidgetHandleCallback getWidgetHandle = nullptr;
-    ForceChildrenRepaintCallback forceChildrenRepaint = nullptr;
-};
-
 using FramelessParams = SystemParameters *;
 using FramelessParamsConst = const SystemParameters *;
 using FramelessParamsRef = SystemParameters &;

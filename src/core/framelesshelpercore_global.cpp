@@ -157,7 +157,8 @@ void registerUninitializeHook(const UninitializeHookCallback &cb)
     WARNING << "registerUninitializeHook: This function is deprecated and will be removed in a future version. Please consider using Qt's official qAddPostRoutine() function instead.";
 }
 
-namespace FramelessHelper::Core
+namespace FramelessHelper {
+namespace Core
 {
 
 void initialize()
@@ -297,6 +298,7 @@ void outputLogo()
     INFO.nospace().noquote() << message;
 }
 
-}
+} // namespace Core
+} // namespace FramelessHelper
 
 FRAMELESSHELPER_END_NAMESPACE
