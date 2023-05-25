@@ -36,6 +36,7 @@
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qloggingcategory.h>
 #include <QtGui/qfontdatabase.h>
+#include <QWidget>
 #include <QWindow>
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 5, 0))
 #  include <QtGui/qguiapplication.h>
@@ -411,6 +412,61 @@ WallpaperAspectStyle FramelessManager::wallpaperAspectStyle() const
 {
     Q_D(const FramelessManager);
     return d->wallpaperAspectStyle();
+}
+
+void FramelessManager::fillSystemParameters(QWidget *widget, SystemParameters &params)
+{
+    if(!widget) return;
+
+    auto window = widget->window();
+    if(!params.getWindowId) {
+        params.getWindowId = [window]() -> WId { return window->winId(); };
+    }
+    if(!params.getWindowFlags) {
+        params.getWindowFlags = [window]() -> Qt::WindowFlags { return window->windowFlags(); };
+    }
+    if(!params.setWindowFlags) {
+        params.setWindowFlags = [window](const Qt::WindowFlags flags) -> void { window->setWindowFlags(flags); };
+    }
+    if(!params.getWindowSize) {
+        params.getWindowSize = [window]() -> QSize { return window->size(); };
+    }
+    if(!params.setWindowSize) {
+        params.setWindowSize = [window](const QSize &size) -> void { window->resize(size); };
+    }
+    if(!params.getWindowPosition) {
+        params.getWindowPosition = [window]() -> QPoint { return window->pos(); };
+    }
+    if(!params.setWindowPosition) {
+        params.setWindowPosition = [window](const QPoint &pos) -> void { window->move(pos); };
+    }
+    if(!params.setProperty) {
+        params.setProperty = [window](const QByteArray &name, const QVariant &value) -> void { window->setProperty(name.data(), value); };
+    }
+    if(!params.getProperty) {
+        params.getProperty = [window](const QByteArray &name, const QVariant &defaultValue) -> QVariant {
+            auto v = window->property(name.data());
+            return v.isValid() ? v : defaultValue;
+        };
+    }
+    if(!params.setCursor) {
+        params.setCursor = [window](const QCursor &cursor) -> void { window->setCursor(cursor); };
+    }
+    if(!params.unsetCursor) {
+        params.unsetCursor = [window]() -> void { window->unsetCursor(); };
+    }
+    if(!params.getWidgetHandle) {
+        params.getWidgetHandle = [window]() -> QObject * { return window; };
+    }
+    if(!params.getWindowScreen) {
+        params.getWindowScreen = [window]() -> QScreen * {
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
+            return window->screen();
+#else
+            return window->windowHandle()->screen();
+#endif
+        };
+    }
 }
 
 void FramelessManager::addWindow(FramelessParamsConst params)

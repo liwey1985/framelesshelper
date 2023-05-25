@@ -307,6 +307,7 @@ if(FRAMELESSHELPER_NO_PRIVATE)
     target_link_libraries(${SUB_PROJ_NAME} PRIVATE
         Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Gui
+        Qt${QT_VERSION_MAJOR}::Widgets
     )
     # Qt X11Extras was first introduced in 5.1 and got removed in 6.0
     # But it was again brought back as a private feature of QtGui in 6.2
@@ -319,6 +320,7 @@ else()
     target_link_libraries(${SUB_PROJ_NAME} PRIVATE
         Qt${QT_VERSION_MAJOR}::CorePrivate
         Qt${QT_VERSION_MAJOR}::GuiPrivate
+        Qt${QT_VERSION_MAJOR}::Widgets
     )
 endif()
 

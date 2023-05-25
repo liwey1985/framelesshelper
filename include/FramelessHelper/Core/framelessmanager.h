@@ -51,6 +51,8 @@ public:
     Q_NODISCARD QString wallpaper() const;
     Q_NODISCARD Global::WallpaperAspectStyle wallpaperAspectStyle() const;
 
+    static void fillSystemParameters(QWidget *widget, SystemParameters &params);
+
 public Q_SLOTS:
     void addWindow(const SystemParameters *params);
     void removeWindow(QWindow *window);

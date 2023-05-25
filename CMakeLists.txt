@@ -55,8 +55,8 @@ cmake_dependent_option(FRAMELESSHELPER_ENABLE_UNIVERSAL_BUILD "macOS only: build
 
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui Widgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets)
 
 find_package(QT NAMES Qt6 Qt5 QUIET COMPONENTS Widgets Quick)
 find_package(Qt${QT_VERSION_MAJOR} QUIET COMPONENTS Widgets Quick)
