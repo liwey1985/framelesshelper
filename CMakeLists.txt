@@ -58,11 +58,6 @@ include(cmake/utils.cmake)
 
 if(NOT APPLE AND FRAMELESSHELPER_ENABLE_UNIVERSAL_BUILD)
     message(WARNING "Current OS is not macOS, universal build will be disabled.")
-    set(FRAMELESSHEL
-include(cmake/utils.cmake)
-
-if(NOT APPLE AND FRAMELESSHELPER_ENABLE_UNIVERSAL_BUILD)
-    message(WARNING "Current OS is not macOS, universal build will be disabled.")
     set(FRAMELESSHELPER_ENABLE_UNIVERSAL_BUILD OFF)
 elseif(APPLE AND FRAMELESSHELPER_ENABLE_UNIVERSAL_BUILD AND ((QT_VERSION VERSION_LESS "6.2" AND QT_VERSION VERSION_GREATER_EQUAL "6.0") OR (QT_VERSION VERSION_LESS "5.15.9")))
     message(WARNING "Your Qt version ${QT_VERSION} doesn't support universal build, it will be disabled.")
