@@ -230,6 +230,14 @@ private:
     return [nsview window];
 }
 
+class NSWindowProxy;
+struct MacUtilsData
+{
+    QHash<QWindow *, NSWindowProxy *> hash = {};
+};
+
+Q_GLOBAL_STATIC(MacUtilsData, g_macUtilsData);
+
 class NSWindowProxy : public QObject
 {
     Q_OBJECT
@@ -268,10 +276,11 @@ public:
 
     ~NSWindowProxy() override
     {
-        clearObserver();
+        nswindowObserver.reset();
 
         instances.remove(qwindow);
         qwindowNSWindowMap.remove(qwindow);
+        g_macUtilsData()->hash.remove(qwindow);
         if (instances.count() <= 0) {
             restoreImplementations();
             windowClass = nil;
@@ -294,9 +303,22 @@ public Q_SLOTS:
         oldShowsToolbarButton = nswindow.showsToolbarButton;
         oldMovableByWindowBackground = nswindow.movableByWindowBackground;
         oldMovable = nswindow.movable;
-        oldCloseButtonVisible = ![nswindow standardWindowButton:NSWindowCloseButton].hidden;
-        oldMiniaturizeButtonVisible = ![nswindow standardWindowButton:NSWindowMiniaturizeButton].hidden;
-        oldZoomButtonVisible = ![nswindow standardWindowButton:NSWindowZoomButton].hidden;
+
+        NSButton *button = nil;
+        do {
+            button = [nswindow standardWindowButton:NSWindowCloseButton];
+            break;
+
+            button = [nswindow standardWindowButton:NSWindowMiniaturizeButton];
+            break;
+
+            button = [nswindow standardWindowButton:NSWindowZoomButton];
+            break;
+        } while (false);
+
+        if(button) {
+            oldTitlebarViewVisible = !button.superview.hidden;
+        }
     }
 
     void restoreState()
@@ -313,9 +335,22 @@ public Q_SLOTS:
         nswindow.showsToolbarButton = oldShowsToolbarButton;
         nswindow.movableByWindowBackground = oldMovableByWindowBackground;
         nswindow.movable = oldMovable;
-        [nswindow standardWindowButton:NSWindowCloseButton].hidden = !oldCloseButtonVisible;
-        [nswindow standardWindowButton:NSWindowMiniaturizeButton].hidden = !oldMiniaturizeButtonVisible;
-        [nswindow standardWindowButton:NSWindowZoomButton].hidden = !oldZoomButtonVisible;
+
+        NSButton *button = nil;
+        do {
+            button = [nswindow standardWindowButton:NSWindowCloseButton];
+            break;
+
+            button = [nswindow standardWindowButton:NSWindowMiniaturizeButton];
+            break;
+
+            button = [nswindow standardWindowButton:NSWindowZoomButton];
+            break;
+        } while (false);
+
+        if(button) {
+            button.superview.hidden = !oldTitlebarViewVisible;
+        }
     }
 
     void replaceImplementations()
@@ -398,7 +433,7 @@ public Q_SLOTS:
 
         if(visible) {
             qwindow->removeEventFilter(this);
-            clearObserver();
+            nswindowObserver.reset();
         } else {
             qwindow->installEventFilter(this);
         }
@@ -418,39 +453,24 @@ public Q_SLOTS:
         nswindow.movableByWindowBackground = NO;
         nswindow.movable = NO;
 
-        NSButton * const closeButton = [nswindow standardWindowButton:NSWindowCloseButton];
-        if(closeButton) closeButton.hidden = (visible ? NO : YES);
-        NSButton * const miniaturizeButton = [nswindow standardWindowButton:NSWindowMiniaturizeButton];
-        if(miniaturizeButton) miniaturizeButton.hidden = (visible ? NO : YES);
-        NSButton * const zoomButton = [nswindow standardWindowButton:NSWindowZoomButton];
-        if(zoomButton) zoomButton.hidden = (visible ? NO : YES);
+        NSButton *button = nil;
+        do {
+            button = [nswindow standardWindowButton:NSWindowCloseButton];
+            break;
 
-        if(visible) return;
+            button = [nswindow standardWindowButton:NSWindowMiniaturizeButton];
+            break;
 
-        if(!nswindowObserver) {
+            button = [nswindow standardWindowButton:NSWindowZoomButton];
+            break;
+        } while (false);
+
+        if(button) {
+            button.superview.hidden = (visible ? NO : YES);;
+        }
+
+        if(!visible && !nswindowObserver) {
             observeNSWindowChange();
-        }
-
-        if(!closeButtonObserver && closeButton) {
-            closeButtonObserver = std::make_unique<MacOSKeyValueObserver>(closeButton, @"hidden", [closeButton](){
-                if(!closeButton.hidden) { // check is required. otherwise, it will cause an infinite loop if macOS <= 10.14.
-                    closeButton.hidden = YES;
-                }
-            });
-        }
-        if(!miniaturizeButtonObserver && miniaturizeButton) {
-            miniaturizeButtonObserver = std::make_unique<MacOSKeyValueObserver>(miniaturizeButton, @"hidden", [miniaturizeButton](){
-                if(!miniaturizeButton.hidden) { // check is required. otherwise, it will cause an infinite loop if macOS <= 10.14.
-                    miniaturizeButton.hidden = YES;
-                }
-            });
-        }
-        if(!zoomButtonObserver && zoomButton) {
-            zoomButtonObserver = std::make_unique<MacOSKeyValueObserver>(zoomButton, @"hidden", [zoomButton](){
-                if(!zoomButton.hidden) { // check is required. otherwise, it will cause an infinite loop if macOS <= 10.14.
-                    zoomButton.hidden = YES;
-                }
-            });
         }
     }
 
@@ -652,16 +672,8 @@ private:
 
         nswindowObserver = std::make_unique<MacOSKeyValueObserver>(nsview, @"window", [this](){
             qwindowNSWindowMap.remove(qwindow); // do nothing until this window is shown again
-            clearObserver();
+            nswindowObserver.reset();
         });
-    }
-
-    void clearObserver()
-    {
-        if(closeButtonObserver) closeButtonObserver.reset();
-        if(zoomButtonObserver) zoomButtonObserver.reset();
-        if(miniaturizeButtonObserver) miniaturizeButtonObserver.reset();
-        if(nswindowObserver) nswindowObserver.reset();
     }
 
 protected:
@@ -685,9 +697,7 @@ private:
     BOOL oldShowsToolbarButton = NO;
     BOOL oldMovableByWindowBackground = NO;
     BOOL oldMovable = NO;
-    BOOL oldCloseButtonVisible = NO;
-    BOOL oldMiniaturizeButtonVisible = NO;
-    BOOL oldZoomButtonVisible = NO;
+    BOOL oldTitlebarViewVisible = NO;
     NSWindowTitleVisibility oldTitleVisibility = NSWindowTitleVisible;
 
     QMetaObject::Connection widthChangeConnection = {};
@@ -714,20 +724,10 @@ private:
     using sendEventPtr = void(*)(id, SEL, NSEvent *);
     static inline sendEventPtr oldSendEvent = nil;
 
-    std::unique_ptr<MacOSKeyValueObserver> closeButtonObserver = nil;
-    std::unique_ptr<MacOSKeyValueObserver> miniaturizeButtonObserver = nil;
-    std::unique_ptr<MacOSKeyValueObserver> zoomButtonObserver = nil;
     std::unique_ptr<MacOSKeyValueObserver> nswindowObserver = nil;
 
     BOOL isResizable = true;
 };
-
-struct MacUtilsData
-{
-    QHash<QWindow *, NSWindowProxy *> hash = {};
-};
-
-Q_GLOBAL_STATIC(MacUtilsData, g_macUtilsData);
 
 static inline void cleanupProxy()
 {
