@@ -467,6 +467,89 @@ void FramelessManager::fillSystemParameters(QWidget *widget, SystemParameters &p
 #endif
         };
     }
+
+    auto isWindowFixedSize = [window]() -> bool {
+        if(window->windowFlags() & Qt::MSWindowsFixedSizeDialogHint) return true;
+
+        const auto minSize = window->minimumSize();
+        const auto maxSize = window->maximumSize();
+
+        if(!minSize.isEmpty() && !maxSize.isEmpty() && (minSize == maxSize)) return true;
+
+        if(window->sizePolicy() == QSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed)) return true;
+
+        return false;
+    };
+    if(!params.isWindowFixedSize) {
+        params.isWindowFixedSize = [isWindowFixedSize] { return isWindowFixedSize(); };
+    }
+    if(!params.setWindowFixedSize) {
+        params.setWindowFixedSize = [window, isWindowFixedSize](const bool value) -> void {
+            if(isWindowFixedSize() == value) return;
+
+            if(value) {
+                window->setFixedSize(window->size());
+            } else {
+                window->setMinimumSize(kDefaultWindowSize);
+                window->setMaximumSize(QSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX));
+            }
+#ifdef Q_OS_WINDOWS
+            Utils::setAeroSnappingEnabled(window->winId(), !value);
+#endif
+            // emitSignalForAllInstances(FRAMELESSHELPER_BYTEARRAY_LITERAL("windowFixedSizeChanged"));
+        };
+    }
+    if(!params.getWindowState) {
+        params.getWindowState = [window]() -> Qt::WindowState { return Utils::windowStatesToWindowState(window->windowState()); };
+    }
+    if(!params.setWindowState) {
+        params.setWindowState = [window](const Qt::WindowState state) -> void { window->setWindowState(state); };
+    }
+    if(!params.getWindowHandle) {
+        params.getWindowHandle = [window]() -> QWindow * { return window->windowHandle(); };
+    }
+    if(!params.windowToScreen) {
+        params.windowToScreen = [window](const QPoint &pos) -> QPoint { return window->mapToGlobal(pos); };
+    }
+    if(!params.screenToWindow) {
+        params.screenToWindow = [window](const QPoint &pos) -> QPoint { return window->mapFromGlobal(pos); };
+    }
+    if(!params.isInsideSystemButtons) {
+        params.isInsideSystemButtons = [/*window*/](const QPoint &/*pos*/, SystemButtonType *button) -> bool {
+            *button = SystemButtonType::Unknown;
+            return false;
+        };
+    }
+    if(!params.isInsideTitleBarDraggableArea) {
+        params.isInsideTitleBarDraggableArea = [/*window*/](const QPoint &/*pos*/) -> bool { return false; };
+    }
+    if(!params.getWindowDevicePixelRatio) {
+        params.getWindowDevicePixelRatio = [window]() -> qreal { return window->devicePixelRatioF(); };
+    }
+    if(!params.setSystemButtonState) {
+        params.setSystemButtonState = [/*window*/](const SystemButtonType /*button*/, const ButtonState /*state*/) -> void { };
+    }
+    if(!params.shouldIgnoreMouseEvents) {
+        params.shouldIgnoreMouseEvents = [window](const QPoint &pos) -> bool {
+            const auto withinFrameBorder = [window, &pos]() -> bool {
+                if (pos.y() < kDefaultResizeBorderThickness) {
+                    return true;
+                }
+#ifdef Q_OS_WINDOWS
+                if (Utils::isWindowFrameBorderVisible()) {
+                    return false;
+                }
+#endif
+                return ((pos.x() < Global::kDefaultResizeBorderThickness)
+                        || (pos.x() >= (window->width() - Global::kDefaultResizeBorderThickness)));
+            }();
+
+            return ((Utils::windowStatesToWindowState(window->windowState()) == Qt::WindowNoState) && withinFrameBorder);
+        };
+    }
+    if(!params.showSystemMenu) {
+        params.showSystemMenu = [/*window*/](const QPoint &/*pos*/) -> void {  };
+    }
 }
 
 void FramelessManager::addWindow(FramelessParamsConst params)
