@@ -317,8 +317,13 @@ bool FramelessManagerPrivate::usePureQtImplementation()
 
 void FramelessManagerPrivate::setOverrideTheme(const SystemTheme theme)
 {
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101300
+    auto value = m_overrideTheme.value();
+#else
+    auto value = m_overrideTheme ? *m_overrideTheme : SystemTheme::Unknown;
+#endif
     if ((!m_overrideTheme.has_value() && (theme == SystemTheme::Unknown))
-        || (m_overrideTheme.has_value() && (m_overrideTheme.value() == theme))) {
+        || (m_overrideTheme.has_value() && (value == theme))) {
         return;
     }
     if (theme == SystemTheme::Unknown) {
